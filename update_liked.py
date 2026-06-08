@@ -21,9 +21,9 @@ def empty_playlist(playlist_id, custom_desc=None):
     time_str = now.strftime('%H:%M')
     
     if custom_desc:
-        formatted = f"Last updated: {date_str} at {time_str}\n{custom_desc}"
+        formatted = f"Last updated: {date_str} at {time_str} GMT\n{custom_desc}"
     else:
-        formatted = f"Last updated: {date_str} at {time_str}\nSemi-automatically updated, with songs I cherish."
+        formatted = f"Last updated: {date_str} at {time_str} GMT\nAuto updates with songs I cherish."
         
     try:
         yt.edit_playlist(playlist_id, description=formatted)
@@ -131,7 +131,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("Step 1: Emptying target playlist")
     print("=" * 60)
-    empty_playlist(TARGET_PLAYLIST_ID, custom_desc="Semi-automatically updated every Saturday, with songs I cherish.")
+    empty_playlist(TARGET_PLAYLIST_ID, custom_desc="Auto updates with songs I cherish.")
     
     print("\n" + "=" * 60)
     print("Step 2: Copying tracks from Liked Music")
