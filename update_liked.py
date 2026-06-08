@@ -121,7 +121,7 @@ def separate_playlist(original_playlist_id, audio_playlist_id, video_playlist_id
 
 if __name__ == "__main__":
     # Your core Target Playlist ID
-    TARGET_PLAYLIST_ID = "PLwL1RrduuW2jxAFQpWwO66zM98FsCJb1B"
+    TARGET_PLAYLIST_ID = "PLwL1RrduuW2j87j0WKjWG_s_DNc0E_gGk"
     
     # TODO: Create these two playlists manually ONCE in your YouTube Music UI, 
     # copy their IDs from the URL bar, and paste them here.
