@@ -100,7 +100,8 @@ def sync_from_liked_music(target_playlist_id):
 
     print("Fetching Liked Music tracks...")
     try:
-        lm_tracks = fetch_playlist_tracks(yt, 'LM')
+        lm_response = yt.get_liked_songs(limit=5000)
+        lm_tracks = lm_response.get('tracks') or []
     except Exception as e:
         print(f"Error fetching Liked Music: {e}")
         return
