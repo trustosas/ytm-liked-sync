@@ -40,10 +40,10 @@ def sync_playlist(yt, playlist_id, desired_video_ids, custom_desc=None):
     Bring `playlist_id` in line with `desired_video_ids` using surgical add/remove.
 
     - Removes tracks whose videoId is not in desired_video_ids.
-    - Adds videoIds that are not already present.
+    - Adds videoIds that are not already present, prepended to top (newest-first).
     - Updates the description regardless.
 
-    `desired_video_ids` should be an ordered list (order is preserved for additions).
+    `desired_video_ids` should be an ordered list (newest first, matching LM).
     """
     update_description(yt, playlist_id, custom_desc)
 
@@ -81,10 +81,11 @@ def sync_playlist(yt, playlist_id, desired_video_ids, custom_desc=None):
         except Exception as e:
             print(f"  Error removing tracks: {e}")
 
-    # --- Additions ---
+    # --- Additions (prepend to top so newest liked = top of playlist) ---
     if to_add_ids:
-        print(f"  Adding {len(to_add_ids)} track(s)...")
+        print(f"  Adding {len(to_add_ids)} track(s) to top...")
         try:
+            yt.edit_playlist(playlist_id, addToTop=True)
             yt.add_playlist_items(playlist_id, to_add_ids)
             print("  Addition done.")
         except Exception as e:
@@ -100,8 +101,7 @@ def sync_from_liked_music(target_playlist_id):
 
     print("Fetching Liked Music tracks...")
     try:
-        lm_response = yt.get_liked_songs(limit=5000)
-        lm_tracks = lm_response.get('tracks') or []
+        lm_tracks = fetch_playlist_tracks(yt, 'LM')
     except Exception as e:
         print(f"Error fetching Liked Music: {e}")
         return
@@ -159,9 +159,9 @@ def sync_split_playlists(original_playlist_id, audio_playlist_id, video_playlist
 
 
 if __name__ == "__main__":
-    TARGET_PLAYLIST_ID = "PLwL1RrduuW2jx5bexJQq5vflW4SuWUkqO"
-    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jHJeqxuSPrM7KlU6AoysrM"
-    VIDEO_PLAYLIST_ID  = "PLwL1RrduuW2hxHi0Z0GwPPntcuO47Q2II"
+    TARGET_PLAYLIST_ID = "PLwL1RrduuW2gYNCJS25UkfOOsj8EgFho5"
+    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jUGAM_pmlsttoAT7uM0u7m"
+    VIDEO_PLAYLIST_ID  = "PLwL1RrduuW2gBvfrR2xs3xLkICfE40b4L"
 
     print("=" * 60)
     print("Step 1 & 2: Diffing Liked Music → target playlist")
