@@ -159,7 +159,7 @@ def sync_split_playlists(original_playlist_id, audio_playlist_id, video_playlist
 
 if __name__ == "__main__":
     TARGET_PLAYLIST_ID = "PLwL1RrduuW2jx5bexJQq5vflW4SuWUkqO"
-    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jHJeqxuSPrM7KlU6AoysrM
+    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jHJeqxuSPrM7KlU6AoysrM"
     VIDEO_PLAYLIST_ID  = "PLwL1RrduuW2hxHi0Z0GwPPntcuO47Q2II"
 
     print("=" * 60)
