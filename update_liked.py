@@ -26,77 +26,49 @@ def update_description(yt, playlist_id, custom_desc=None):
 
 
 def fetch_playlist_tracks(yt, playlist_id):
-    """
-    Fetch all tracks from a playlist.
-    Returns a list of track dicts (may be empty).
-    Raises on hard failure.
-    """
+    """Fetch all tracks from a playlist. Returns a list of track dicts."""
     playlist = yt.get_playlist(playlist_id, limit=None)
     return playlist.get('tracks') or []
 
 
-def sync_playlist(yt, playlist_id, desired_video_ids, custom_desc=None):
-    """
-    Bring `playlist_id` in line with `desired_video_ids` using surgical add/remove.
-
-    - Removes tracks whose videoId is not in desired_video_ids.
-    - Adds videoIds that are not already present, prepended to top (newest-first).
-    - Updates the description regardless.
-
-    `desired_video_ids` should be an ordered list (newest first, matching LM).
-    """
+def purge_and_refill(yt, playlist_id, video_ids, custom_desc=None):
+    """Empty a playlist then refill it in one batched add."""
     update_description(yt, playlist_id, custom_desc)
 
+    # --- Purge ---
+    print(f"  Fetching current tracks...")
     try:
         current_tracks = fetch_playlist_tracks(yt, playlist_id)
     except Exception as e:
         print(f"  Error fetching playlist {playlist_id}: {e}")
         return
 
-    # Build lookup structures
-    desired_set = set(desired_video_ids)
-    current_by_id = {}
-    for track in current_tracks:
-        vid = track.get('videoId')
-        if vid:
-            current_by_id[vid] = track  # last occurrence wins (handles accidental dupes)
-
-    current_set = set(current_by_id.keys())
-
-    to_remove_ids = current_set - desired_set
-    to_add_ids    = [vid for vid in desired_video_ids if vid not in current_set]
-
-    print(f"  Current: {len(current_set)} | Desired: {len(desired_set)} | "
-          f"To add: {len(to_add_ids)} | To remove: {len(to_remove_ids)}")
-
-    # --- Removals (needs full track objects with setVideoId) ---
-    if to_remove_ids:
-        tracks_to_remove = [current_by_id[vid] for vid in to_remove_ids]
-        print(f"  Removing {len(tracks_to_remove)} track(s)...")
+    if current_tracks:
+        print(f"  Purging {len(current_tracks)} track(s)...")
         try:
-            yt.remove_playlist_items(playlist_id, tracks_to_remove)
-            print("  Removal done.")
+            yt.remove_playlist_items(playlist_id, current_tracks)
+            print("  Purge done.")
         except ReadTimeout:
-            print("  Warning: ReadTimeout during removal (YouTube likely processed it anyway).")
+            print("  Warning: ReadTimeout during purge (YouTube likely processed it anyway).")
         except Exception as e:
-            print(f"  Error removing tracks: {e}")
+            print(f"  Error purging tracks: {e}")
+    else:
+        print("  Playlist already empty.")
 
-    # --- Additions (prepend to top so newest liked = top of playlist) ---
-    if to_add_ids:
-        print(f"  Adding {len(to_add_ids)} track(s) to top...")
+    # --- Refill ---
+    if video_ids:
+        print(f"  Refilling with {len(video_ids)} track(s)...")
         try:
-            yt.edit_playlist(playlist_id, addToTop=True)
-            yt.add_playlist_items(playlist_id, to_add_ids)
-            print("  Addition done.")
+            yt.add_playlist_items(playlist_id, video_ids)
+            print("  Refill done.")
         except Exception as e:
-            print(f"  Error adding tracks: {e}")
-
-    if not to_remove_ids and not to_add_ids:
-        print("  Already in sync — no changes needed.")
+            print(f"  Error refilling tracks: {e}")
+    else:
+        print("  No tracks to add.")
 
 
 def sync_from_liked_music(target_playlist_id):
-    """Sync target playlist to match Liked Music (LM)."""
+    """Purge and refill target playlist from Liked Music."""
     yt = get_yt_client()
 
     print("Fetching Liked Music tracks...")
@@ -104,38 +76,26 @@ def sync_from_liked_music(target_playlist_id):
         lm_tracks = fetch_playlist_tracks(yt, 'LM')
     except Exception as e:
         print(f"Error fetching Liked Music: {e}")
-        return
+        return None
 
     if not lm_tracks:
         print("Liked Music is empty — nothing to sync.")
-        return
+        return None
 
     print(f"Liked Music: {len(lm_tracks)} track(s)")
 
     lm_video_ids = [t['videoId'] for t in lm_tracks if t and 'videoId' in t]
 
     print(f"\nSyncing target playlist ({target_playlist_id})...")
-    sync_playlist(yt, target_playlist_id, lm_video_ids,
-                  custom_desc="Auto updates with songs I cherish.")
+    purge_and_refill(yt, target_playlist_id, lm_video_ids,
+                     custom_desc="Auto updates with songs I cherish.")
 
-    return lm_tracks  # pass through so separate_playlist can reuse it
+    return lm_tracks
 
 
-def sync_split_playlists(original_playlist_id, audio_playlist_id, video_playlist_id,
-                         source_tracks=None):
-    """
-    Sync audio-only and video-only split playlists from `original_playlist_id`.
-    Pass `source_tracks` to skip a redundant fetch if you already have them.
-    """
+def sync_split_playlists(audio_playlist_id, video_playlist_id, source_tracks):
+    """Purge and refill audio/video split playlists from source_tracks."""
     yt = get_yt_client()
-
-    if source_tracks is None:
-        print(f"Fetching source playlist ({original_playlist_id})...")
-        try:
-            source_tracks = fetch_playlist_tracks(yt, original_playlist_id)
-        except Exception as e:
-            print(f"Error fetching source playlist: {e}")
-            return
 
     audio_ids = []
     video_ids = []
@@ -150,30 +110,29 @@ def sync_split_playlists(original_playlist_id, audio_playlist_id, video_playlist
     print(f"Split: {len(audio_ids)} audio | {len(video_ids)} video")
 
     print(f"\nSyncing audio playlist ({audio_playlist_id})...")
-    sync_playlist(yt, audio_playlist_id, audio_ids,
-                  custom_desc="Playlist containing only audio tracks.")
+    purge_and_refill(yt, audio_playlist_id, audio_ids,
+                     custom_desc="Playlist containing only audio tracks.")
 
     print(f"\nSyncing video playlist ({video_playlist_id})...")
-    sync_playlist(yt, video_playlist_id, video_ids,
-                  custom_desc="Playlist containing only video tracks.")
+    purge_and_refill(yt, video_playlist_id, video_ids,
+                     custom_desc="Playlist containing only video tracks.")
 
 
 if __name__ == "__main__":
-    TARGET_PLAYLIST_ID = "PLwL1RrduuW2gYNCJS25UkfOOsj8EgFho5"
-    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jUGAM_pmlsttoAT7uM0u7m"
-    VIDEO_PLAYLIST_ID  = "PLwL1RrduuW2gBvfrR2xs3xLkICfE40b4L"
+    TARGET_PLAYLIST_ID = "PLwL1RrduuW2g6XKBN5JSugD96tItkPJW4"
+    AUDIO_PLAYLIST_ID  = "PLwL1RrduuW2jC7jwXNca30hHzW3rdPF-E"
+    VIDEO_PLAYLIST_ID  = "PLwL1RrduuW2jdBKTAPc88Bl4vKWuU1_T9"
 
     print("=" * 60)
-    print("Step 1 & 2: Diffing Liked Music → target playlist")
+    print("Step 1 & 2: Syncing Liked Music → target playlist")
     print("=" * 60)
     lm_tracks = sync_from_liked_music(TARGET_PLAYLIST_ID)
 
-    print("\n" + "=" * 60)
-    print("Step 3: Diffing target playlist → audio / video split")
-    print("=" * 60)
-    # Reuse lm_tracks as the source so we skip a third fetch of the target
-    sync_split_playlists(TARGET_PLAYLIST_ID, AUDIO_PLAYLIST_ID, VIDEO_PLAYLIST_ID,
-                         source_tracks=lm_tracks)
+    if lm_tracks:
+        print("\n" + "=" * 60)
+        print("Step 3: Splitting target → audio / video playlists")
+        print("=" * 60)
+        sync_split_playlists(AUDIO_PLAYLIST_ID, VIDEO_PLAYLIST_ID, lm_tracks)
 
     print("\n" + "=" * 60)
     print("Process completed successfully!")
